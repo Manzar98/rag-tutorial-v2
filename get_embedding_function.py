@@ -1,10 +1,28 @@
-from langchain_community.embeddings.ollama import OllamaEmbeddings
-from langchain_community.embeddings.bedrock import BedrockEmbeddings
+import requests
+
+OLLAMA_URL = "http://localhost:11434/api/embeddings"
+MODEL = "mistral"
+
+class OllamaEmbeddingFunction:
+    """Custom embedding function compatible with LangChain and Chroma."""
+
+    def embed_documents(self, texts):
+        embeddings = []
+        for text in texts:
+            payload = {"model": MODEL, "prompt": text}
+            response = requests.post(OLLAMA_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            embeddings.append(data["embedding"])
+        return embeddings
+
+    def embed_query(self, text):
+        payload = {"model": MODEL, "prompt": text}
+        response = requests.post(OLLAMA_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return data["embedding"]
 
 
 def get_embedding_function():
-    embeddings = BedrockEmbeddings(
-        credentials_profile_name="default", region_name="us-east-1"
-    )
-    # embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    return embeddings
+    return OllamaEmbeddingFunction()

@@ -2,7 +2,8 @@ import argparse
 import os
 import shutil
 from langchain.document_loaders.pdf import PyPDFDirectoryLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.document_loaders.text import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from get_embedding_function import get_embedding_function
 from langchain.vectorstores.chroma import Chroma
@@ -30,7 +31,14 @@ def main():
 
 def load_documents():
     document_loader = PyPDFDirectoryLoader(DATA_PATH)
-    return document_loader.load()
+    md_docs = []
+    for root, _, files in os.walk(DATA_PATH):
+        for file in files:
+            if file.endswith(".md"):
+                path = os.path.join(root, file)
+                md_loader = TextLoader(path, encoding="utf-8")
+                md_docs.extend(md_loader.load())
+    return md_docs + document_loader.load()
 
 
 def split_documents(documents: list[Document]):
@@ -67,14 +75,13 @@ def add_to_chroma(chunks: list[Document]):
         print(f"👉 Adding new documents: {len(new_chunks)}")
         new_chunk_ids = [chunk.metadata["id"] for chunk in new_chunks]
         db.add_documents(new_chunks, ids=new_chunk_ids)
-        db.persist()
     else:
         print("✅ No new documents to add")
 
 
 def calculate_chunk_ids(chunks):
-
-    # This will create IDs like "data/monopoly.pdf:6:2"
+    # This will create IDs like "data/monopoly.pdf:6:2" for PDFs
+    # or "data/profile.md:0:0" for markdown files
     # Page Source : Page Number : Chunk Index
 
     last_page_id = None
@@ -83,6 +90,11 @@ def calculate_chunk_ids(chunks):
     for chunk in chunks:
         source = chunk.metadata.get("source")
         page = chunk.metadata.get("page")
+        
+        # For markdown files without page numbers, use 0 as the page
+        if page is None:
+            page = 0
+            
         current_page_id = f"{source}:{page}"
 
         # If the page ID is the same as the last one, increment the index.
